@@ -10,7 +10,7 @@ public class CameraFollow : MonoBehaviour
 
 
     // Update is called once per frame
-    void Update()
+    void LateUpdate()
     {
         float interpolate = 1f - Mathf.Pow(1f - speed, Time.deltaTime * 30f);
         float buffer = speed * Time.deltaTime;
