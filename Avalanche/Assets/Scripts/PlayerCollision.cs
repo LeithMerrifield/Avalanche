@@ -16,7 +16,7 @@ public class PlayerCollision : MonoBehaviour
             Movement.enabled = false;
             FindObjectOfType<Manager>().GameOver();
             RestartButton.SetActive(true);
-            
+            Time.timeScale = 0;
         }
         else
         {
