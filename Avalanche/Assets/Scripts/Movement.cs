@@ -1,18 +1,24 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using System.Threading.Tasks;
 
 public class Movement : MonoBehaviour
 {
     public float jumpHeight;
     public float speed;
-    private Rigidbody body;
     public int maxJumps;
+    public eCharacterState myState;
+    public float jumpDelay = 0.1f;
+
+    private Rigidbody body;
     private int jump;
+    private bool timercheck = false;
+    private bool tempcheck = true;
     private float rayLength = .3f;
     private float rayLengthDown = 1f;
-    public eCharacterState myState;
     private bool jumpingState;
+    private Animator playAnim;
 
     public enum eCharacterState
     {
@@ -25,8 +31,15 @@ public class Movement : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
+        playAnim = GetComponent<Animator>();
         myState = eCharacterState.GROUNDED;
         body = GetComponent<Rigidbody>();
+    }
+
+    IEnumerator WallJumpTimer()
+    {
+        yield return new WaitForSeconds(.2f);
+        timercheck = false;
     }
 
     // Update is called once per frame
@@ -152,12 +165,19 @@ public class Movement : MonoBehaviour
 
         if (Input.GetKey("space") && jump < maxJumps)
         {
-            var amount = jumpHeight * Time.deltaTime * 100.0f;
-            body.AddForce(0.0f, amount, 0.0f, ForceMode.Impulse);
+            StartCoroutine(Jump());
             myState = eCharacterState.JUMPING;
             jump++;
             jumpingState = true;
         }
+    }
+
+    private IEnumerator Jump()
+    {
+        playAnim.Play("JumpTest", 0, 0.25f);
+        yield return new WaitForSeconds(jumpDelay);
+        var amount = jumpHeight * Time.deltaTime * 100.0f;
+        body.AddForce(0.0f, amount, 0.0f, ForceMode.Impulse);
     }
 
     private void OnCollisionEnter(Collision collision)
