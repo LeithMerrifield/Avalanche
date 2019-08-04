@@ -8,7 +8,6 @@ public class CameraFollow : MonoBehaviour
     public GameObject objectToFollow;
     public float speed = 0.1f;
 
-
     // Update is called once per frame
     void LateUpdate()
     {
