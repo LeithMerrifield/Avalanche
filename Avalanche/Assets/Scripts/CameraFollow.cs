@@ -7,6 +7,7 @@ public class CameraFollow : MonoBehaviour
     // Start is called before the first frame update
     public GameObject objectToFollow;
     public float speed = 0.1f;
+    public float offset = 5f;
 
     // Update is called once per frame
     void LateUpdate()
@@ -15,7 +16,7 @@ public class CameraFollow : MonoBehaviour
         float buffer = speed * Time.deltaTime;
 
         Vector3 position = this.transform.position;
-        position.y = Mathf.Lerp(this.transform.position.y, objectToFollow.transform.position.y, interpolate);
+        position.y = Mathf.Lerp(this.transform.position.y, objectToFollow.transform.position.y  + offset, interpolate);
         //position.x = Mathf.Lerp(this.transform.position.x, objectToFollow.transform.position.x, interpolate);
 
         //position.x = objectToFollow.transform.position.x;
