@@ -11,11 +11,9 @@ public class Movement : MonoBehaviour
 
     private int jump;
     private bool timercheck = false;
-
     private float rayLength = .3f;
     private float rayLengthDown = .52f;
     private Rigidbody body;
-    private bool telecheck = false;
 
     //the states the player can be in
     public enum CharacterState
