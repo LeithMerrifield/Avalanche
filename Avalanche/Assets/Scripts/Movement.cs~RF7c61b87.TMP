@@ -108,6 +108,7 @@ public class Movement : MonoBehaviour
             return;
         }
 
+
         if (Physics.Raycast(bottomRight, right, rayLength) ||
             (Physics.Raycast(transform.position, right, rayLength)) ||
             (Physics.Raycast(topRight, right, rayLength)))
