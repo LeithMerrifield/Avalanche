@@ -282,5 +282,13 @@ public class Movement : MonoBehaviour
     {
         jump = 0;
     }
+
+    public void OnCollisionEnter(Collision collision)
+    {
+        if(collision.collider.tag == "Death")
+        {
+            GameObject.Find("Manager").GetComponent<GamePlayManager>().GameEnd = true;
+        }
+    }
 }
 

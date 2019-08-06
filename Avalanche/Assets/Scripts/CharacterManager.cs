@@ -7,7 +7,6 @@ using UnityEngine.UI;
 public class CharacterManager : MonoBehaviour
 {
     public List<GameObject> playerList = new List<GameObject>();
-    private GameObject Player;
     private List<Material> skinList = new List<Material>();
     private int currentSkin;
     private int previousSkin;
