@@ -174,7 +174,7 @@ public class Movement : MonoBehaviour
 
     private IEnumerator Jump()
     {
-        playAnim.Play("JumpTest", 0, 0.25f);
+        playAnim.Play("JUMPYTEST", 0, 0.25f);
         yield return new WaitForSeconds(jumpDelay);
         var amount = jumpHeight * Time.deltaTime * 100.0f;
         body.AddForce(0.0f, amount, 0.0f, ForceMode.Impulse);
