@@ -32,9 +32,9 @@ public class Movement : MonoBehaviour
     }
 
     //the timeout that happens after jumping from a wall
-    IEnumerator WallJumpTimer()
+    IEnumerator WallJumpTimer(float time)
     {
-        yield return new WaitForSeconds(.2f);
+        yield return new WaitForSeconds(time);
         timercheck = false;
     }
 
@@ -42,6 +42,8 @@ public class Movement : MonoBehaviour
     void FixedUpdate()
     {
         Raycasts();
+        TeleWallRaycast();
+
         switch (myState)
         {
             case CharacterState.JUMPING:
@@ -70,86 +72,134 @@ public class Movement : MonoBehaviour
     //somewhere to put the messing looking raycasts
     private void Raycasts()
     {
+        bool grabbingCheck = false;
+
         Vector3 topRight = new Vector3(transform.position.x, transform.position.y + .45f, transform.position.z);
-        Vector3 bottomRight = new Vector3(transform.position.x, transform.position.y - .45f, transform.position.z);
         Vector3 topLeft = new Vector3(transform.position.x, transform.position.y + .45f, transform.position.z);
+        Vector3 bottomRight = new Vector3(transform.position.x, transform.position.y - .45f, transform.position.z);
         Vector3 bottomLeft = new Vector3(transform.position.x, transform.position.y - .45f, transform.position.z);
+        Vector3 downLeft = new Vector3(transform.position.x + -.2f, transform.position.y, transform.position.z);
+        Vector3 downRight = new Vector3(transform.position.x + .2f, transform.position.y, transform.position.z);
 
         Vector3 right = transform.TransformDirection(new Vector3(rayLength, 0f, 0f));
         Vector3 left = transform.TransformDirection(new Vector3(-rayLength, 0f, 0f));
         Vector3 down = transform.TransformDirection(new Vector3(0f, -rayLengthDown, 0f));
 
-        Debug.DrawRay(transform.position, down, Color.red);
-        if (Physics.Raycast(transform.position, down, rayLengthDown))
+        RaycastHit HitLeft;
+        RaycastHit HitRight;
+
+        Ray leftRay = new Ray(transform.position, left);
+        Ray rightRay = new Ray(transform.position, right);
+
+        Debug.DrawRay(bottomLeft, left, Color.green);
+        Debug.DrawRay(topLeft, left, Color.green);
+        Debug.DrawRay(transform.position, left, Color.green);
+
+        Debug.DrawRay(bottomRight, right, Color.green);
+        Debug.DrawRay(topRight, right, Color.green);
+        Debug.DrawRay(transform.position, right, Color.green);
+
+        if (Physics.Raycast(downLeft, down, rayLengthDown) || 
+            Physics.Raycast(downRight, down, rayLengthDown))
         {
             myState = CharacterState.GROUNDED;
             return;
         }
 
-        if ((Physics.Raycast(bottomRight, right, rayLength) ||
-           Physics.Raycast(topRight, right, rayLength)))
+        if (Physics.Raycast(bottomRight, right, rayLength) ||
+            (Physics.Raycast(transform.position, right, rayLength)) ||
+            (Physics.Raycast(topRight, right, rayLength)))
         {
-            myState = CharacterState.WALLGRABRIGHT;
+            if (Physics.Raycast(rightRay, out HitRight, rayLength))
+                if (HitRight.collider.tag == "Wall")
+                    return;
+
+             myState = CharacterState.WALLGRABRIGHT;
+        }
+        else
+        {
+            grabbingCheck = true;
         }
 
         if ((Physics.Raycast(bottomLeft, left, rayLength) ||
-            Physics.Raycast(topLeft, left, rayLength)))
+            Physics.Raycast(topLeft, left, rayLength)) ||
+            Physics.Raycast(transform.position, left, rayLength))
         {
+            if (Physics.Raycast(leftRay, out HitLeft, rayLength))
+                if (HitLeft.collider.tag == "Wall")
+                    return;
+
             myState = CharacterState.WALLGRABLEFT;
         }
+        else
+        {
+            if(grabbingCheck && myState != CharacterState.GROUNDED)
+            {
+                myState = CharacterState.JUMPING;
+            }
+        }
+    }
+
+    private void TeleWallRaycast()
+    {
+        RaycastHit HitLeft;
+        RaycastHit HitRight;
+
+        Vector3 left = transform.TransformDirection(new Vector3(-rayLength, 0f, 0f));
+        Vector3 right = transform.TransformDirection(new Vector3(rayLength, 0f, 0f));
+        Ray leftRay = new Ray(transform.position, left);
+        Ray rightRay = new Ray(transform.position, right);
+
+
+        if (Physics.Raycast(leftRay, out HitLeft, rayLength))
+        {
+            if (HitLeft.collider.tag == "Wall")
+            {
+                if(!(body.position.x > 0f))
+                {
+                    body.position = new Vector3(-(HitLeft.transform.position.x) - .5f, body.position.y, body.velocity.z);
+                }
+            }
+        }
+        else if (Physics.Raycast(rightRay, out HitRight, rayLength))
+        {
+            if (HitRight.collider.tag == "Wall" && timercheck != true)
+            {
+                if (!(body.position.x < 0f))
+                {
+                    body.position = new Vector3(-(HitRight.transform.position.x) + .5f, body.position.y, body.velocity.z);
+                }
+            }
+        }
+
     }
 
     //if players state is jumping then these are the movemnts that will run
     public void JumpingMovement()
     {
-        if (body.velocity.x > 0)
-        {
-            if (Input.GetKey("a") && timercheck != true)
-            {
-                var amount = -speed * Time.deltaTime * 60f;
-                var temp = body;
-                temp.velocity = new Vector3(amount, body.velocity.y, 0f);
-                if (temp.velocity.x < 5.0f)
-                {
-                    body.velocity = new Vector3(amount, body.velocity.y, 0f);
-                }
-            }
-        }
-        else if(body.velocity.x < 0)
-        {
-           if (Input.GetKey("d") && timercheck != true)
-           {
-               var amount = speed * Time.deltaTime * 60f;
-               var temp = body;
-               temp.velocity = new Vector3(amount, body.velocity.y, 0f);
-               if (temp.velocity.x < 5.0f)
-               {
-                   body.velocity = new Vector3(amount, body.velocity.y, 0f);
-               }
-           }
-        }
-        else
-        {
-            if (Input.GetKey("d"))
-            {
-                var amount = speed * Time.deltaTime * 60f;
-                var temp = body;
-                temp.velocity = new Vector3(amount, body.velocity.y, 0f);
-                if (temp.velocity.x < 5.0f)
-                {
-                    body.velocity = new Vector3(amount, body.velocity.y, 0f);
-                }
-            }
 
-            if (Input.GetKey("a"))
+        if (Input.GetKey("a") && timercheck != true)
+        {
+            var amount = -speed * Time.deltaTime * 100f;
+
+
+            if (!(body.velocity.x < -5f))
             {
-                var amount = -speed * Time.deltaTime * 60f;
-                var temp = body;
-                temp.velocity = new Vector3(amount, body.velocity.y, 0f);
-                if (temp.velocity.x < 5.0f)
-                {
-                    body.velocity = new Vector3(amount, body.velocity.y, 0f);
-                }
+                body.AddForce(amount * 7F, body.velocity.y, 0.0f, ForceMode.Force);
+            }
+        }
+
+        if (Input.GetKey("d") && timercheck != true)
+        {
+            var amount = speed * Time.deltaTime * 100f;
+            //var temp = body;
+            //temp.velocity = new Vector3(amount, body.velocity.y, 0f);
+
+            //body.velocity = new Vector3(amount, body.velocity.y, 0f);
+
+            if(!(body.velocity.x > 5f))
+            { 
+                body.AddForce(amount * 7F, body.velocity.y, 0.0f, ForceMode.Force);
             }
         }
     }
@@ -161,46 +211,43 @@ public class Movement : MonoBehaviour
         if (direction)
         {
             //when the player is gripping using the right side
-            if (Input.GetKeyDown("space") && jump < maxJumps)
+            if (Input.GetKey("space") && jump < maxJumps)
             {
                 var amount = jumpHeight * Time.deltaTime * 100.0f;
-                body.AddForce(-6.0f, amount * 1.2f, 0.0f, ForceMode.Impulse);
+
+                if (!(body.velocity.y > jumpHeight))
+                {
+                    body.AddForce(-6.0f, amount * 1.2f, 0.0f, ForceMode.Impulse);
+                }
                 myState = CharacterState.JUMPING;
                 jump++;
                 timercheck = true;
-                StartCoroutine(WallJumpTimer());
+                StartCoroutine(WallJumpTimer(.1f));
             }
             if (Input.GetKey("d"))
             {
                 var amount = -1 * Time.deltaTime * 75f;
-                var temp = body;
-                temp.velocity = new Vector3(0f, amount, 0f);
-                if (temp.velocity.x < 5.0f)
-                {
-                    body.velocity = new Vector3(0.0f, amount, 0f);
-                }
+                body.velocity = new Vector3(0f, amount, 0f);
             }
         }
         else
         {
-            if (Input.GetKeyDown("space") && jump < maxJumps)
+            if (Input.GetKey("space") && jump < maxJumps)
             {
                 var amount = jumpHeight * Time.deltaTime * 100.0f;
-                body.AddForce(6.0f, amount * 1.2f, 0.0f, ForceMode.Impulse);
+                if (!(body.velocity.y > jumpHeight))
+                {
+                    body.AddForce(6.0f, amount * 1.2f, 0.0f, ForceMode.Impulse);
+                }
                 myState = CharacterState.JUMPING;
                 jump++;
                 timercheck = true;
-                StartCoroutine(WallJumpTimer());
+                StartCoroutine(WallJumpTimer(.1f));
             }
             if (Input.GetKey("a"))
             {
                 var amount = -1 * Time.deltaTime * 75f;
-                var temp = body;
-                temp.velocity = new Vector3(0f, amount, 0f);
-                if (temp.velocity.x < -5.0f)
-                {
-                    body.velocity = new Vector3(0.0f, amount, 0f);
-                }
+                body.velocity = new Vector3(0f, amount, 0f);
             }
         }
     }
@@ -211,22 +258,14 @@ public class Movement : MonoBehaviour
         if (Input.GetKey("d"))
         {
             var amount = speed * Time.deltaTime * 100.0f;
-            var temp = body;
-            temp.velocity = new Vector3(amount, body.velocity.y, 0f);
-            if (temp.velocity.x < 5.0f)
-            {
-                body.velocity = new Vector3(amount, body.velocity.y, 0f);
-            }
+            body.velocity = new Vector3(amount, body.velocity.y, 0f);
+
         }
         if (Input.GetKey("a"))
         {
             var amount = -speed * Time.deltaTime * 100.0f;
-            var temp = body;
-            temp.velocity = new Vector3(amount, body.velocity.y, 0f);
-            if (temp.velocity.x < -5.0f)
-            {
-                body.velocity = new Vector3(amount, body.velocity.y, 0f);
-            }
+            body.velocity = new Vector3(amount, body.velocity.y, 0f);
+
         }
         if (Input.GetKey("space") && jump < maxJumps)
         {
