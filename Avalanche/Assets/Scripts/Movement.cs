@@ -1,24 +1,38 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
+using UnityEditor.Experimental.TerrainAPI;
+using UnityEditorInternal;
 using UnityEngine;
 
 public class Movement : MonoBehaviour
 {
     public int maxJumps;
     public float jumpHeight;
-    public float speed;
+    public float horizontalSpeed;
+    private float horizontalSpeedMulti = 20.0f;
+    private bool wallGrabActivated = false;
+    public float wallGrabSpeed = 5.0f;
+    public float maxFallSpeed = 10.0f;
+
     public CharacterState myState;
+    private bool skipRaycast = false;
+
 
     private int jump;
     private bool timercheck = false;
-    private float rayLength = .3f;
-    private float rayLengthDown = .52f;
-    private Rigidbody body;
+    private float characterHeight;
+    private float characterWidth;
+    private Rigidbody rb;
+    private BoxCollider bCollider;
+
+    public bool[] inputArray = new bool[10]; // 0 = Space, 1 = left, 2 = right
 
     //the states the player can be in
     public enum CharacterState
     {
         GROUNDED,
+        FALLING,
         JUMPING,
         WALLGRABRIGHT,
         WALLGRABLEFT
@@ -28,22 +42,21 @@ public class Movement : MonoBehaviour
     void Start()
     {
         myState = CharacterState.GROUNDED;
-        body = GetComponent<Rigidbody>();
-    }
-
-    //the timeout that happens after jumping from a wall
-    IEnumerator WallJumpTimer(float time)
-    {
-        yield return new WaitForSeconds(time);
-        timercheck = false;
+        rb = GetComponent<Rigidbody>();
+        bCollider = GetComponent<BoxCollider>();
+        characterHeight = bCollider.bounds.extents.y;
+        characterWidth = bCollider.bounds.extents.x;
     }
 
     // Update is called once per frame and is used for physics updates
     void FixedUpdate()
     {
-        Raycasts();
-        TeleWallRaycast();
+        if(!skipRaycast)
+        {
+            Raycasts();
+        }
 
+        TeleWallRaycast();
         switch (myState)
         {
             case CharacterState.JUMPING:
@@ -53,12 +66,12 @@ public class Movement : MonoBehaviour
                 }
             case CharacterState.WALLGRABRIGHT:
                 {
-                    WallGrabMovement(true);
+                    GroundedMovement();
                     break;
                 }
             case CharacterState.WALLGRABLEFT:
                 {
-                    WallGrabMovement(false);
+                    GroundedMovement();
                     break;
                 }
             case CharacterState.GROUNDED:
@@ -66,221 +79,171 @@ public class Movement : MonoBehaviour
                     GroundedMovement();
                     break;
                 }
+            case CharacterState.FALLING:
+                {
+                    GroundedMovement();
+                    break;
+                }
         }
     }
-    
-    //somewhere to put the messing looking raycasts
-    private void Raycasts()
+
+    void Update()
     {
-        bool grabbingCheck = false;
+        PlayerInput();
+    }
 
-        Vector3 topRight = new Vector3(transform.position.x, transform.position.y + .45f, transform.position.z);
-        Vector3 topLeft = new Vector3(transform.position.x, transform.position.y + .45f, transform.position.z);
-        Vector3 bottomRight = new Vector3(transform.position.x, transform.position.y - .45f, transform.position.z);
-        Vector3 bottomLeft = new Vector3(transform.position.x, transform.position.y - .45f, transform.position.z);
-        Vector3 downLeft = new Vector3(transform.position.x + -.2f, transform.position.y, transform.position.z);
-        Vector3 downRight = new Vector3(transform.position.x + .2f, transform.position.y, transform.position.z);
+    public void PlayerInput()
+    {
+        for(int i = 0; i < inputArray.Length; i++)
+        {
+            inputArray[i] = false;
+        }
 
-        Vector3 right = transform.TransformDirection(new Vector3(rayLength, 0f, 0f));
-        Vector3 left = transform.TransformDirection(new Vector3(-rayLength, 0f, 0f));
-        Vector3 down = transform.TransformDirection(new Vector3(0f, -rayLengthDown, 0f));
+        if(Input.GetKeyDown(KeyCode.Space))
+        {
+            inputArray[0] = true;
+            myState = CharacterState.JUMPING;
+            skipRaycast = true;
+        }
 
-        RaycastHit HitLeft;
-        RaycastHit HitRight;
+        var h = Input.GetAxisRaw("Horizontal");
+        if (h < 0)
+        {
+            inputArray[1] = true;
+        }
+        else if(h > 0)
+        {
+            inputArray[2] = true;
+        }
+    }
 
-        Ray leftRay = new Ray(transform.position, left);
-        Ray rightRay = new Ray(transform.position, right);
+    public void GroundedMovement()
+    {
+        var h = Input.GetAxisRaw("Horizontal");
+        Vector3 tempVect = new Vector3(h, 0, 0);
+        tempVect = tempVect.normalized * horizontalSpeed * horizontalSpeedMulti * Time.fixedDeltaTime;
 
-        Debug.DrawRay(bottomLeft, left, Color.green);
-        Debug.DrawRay(topLeft, left, Color.green);
-        Debug.DrawRay(transform.position, left, Color.green);
+        if(wallGrabActivated)
+        {
+            tempVect.y = wallGrabSpeed;
+        }
+        else
+        {
+            if(rb.velocity.y <= maxFallSpeed)
+            {
+                 tempVect.y = maxFallSpeed;
+            }
+            else
+            {
+                tempVect.y = rb.velocity.y;
+            }
+        }
 
-        Debug.DrawRay(bottomRight, right, Color.green);
-        Debug.DrawRay(topRight, right, Color.green);
-        Debug.DrawRay(transform.position, right, Color.green);
+        rb.velocity = tempVect;
+    }
 
-        if (Physics.Raycast(downLeft, down, rayLengthDown) || 
-            Physics.Raycast(downRight, down, rayLengthDown))
+    public void JumpingMovement()
+    {
+        rb.AddForce(Vector3.up * jumpHeight, ForceMode.Impulse);
+        myState = CharacterState.FALLING;
+        skipRaycast = false;
+    }
+
+    public void Raycasts()
+    {
+        float extraLength = 0.001f;
+
+        Vector3 left = bCollider.bounds.center;
+        left.x -= characterWidth - extraLength;
+        Vector3 right = bCollider.bounds.center;
+        right.x += characterWidth - extraLength;
+
+        Vector3 top = bCollider.bounds.center;
+        top.y += characterHeight - extraLength;
+        Vector3 bottom = bCollider.bounds.center;
+        bottom.y -= characterHeight - extraLength;
+
+
+        RaycastHit downHit;
+        RaycastHit leftHit;
+        RaycastHit rightHit;
+        Ray leftDownRay = new Ray(left, Vector3.down);
+        Ray rightDownRay = new Ray(right, Vector3.down);
+        Ray topRightRay = new Ray(top, Vector3.right);
+        Ray bottomRightRay = new Ray(bottom, Vector3.right);
+        Ray topLeftRay = new Ray(top, Vector3.left);
+        Ray bottomLeftRay = new Ray(bottom, Vector3.left);
+
+        Debug.DrawRay(top, new Vector3(-0.26f,0,0), Color.green);
+        Debug.DrawRay(bottom, new Vector3(-0.26f, 0, 0), Color.green);
+        Debug.DrawRay(left, new Vector3(0, -0.51f, 0), Color.green);
+        Debug.DrawRay(right, new Vector3(0, -0.51f, 0), Color.green);
+        Debug.DrawRay(top, new Vector3(0.26f, 0, 0), Color.green);
+        Debug.DrawRay(bottom, new Vector3(0.26f, 0, 0), Color.green);
+
+        if (myState != CharacterState.GROUNDED &&
+            Physics.Raycast(leftDownRay, out downHit, characterHeight + extraLength) ||
+            Physics.Raycast(rightDownRay, out downHit, characterHeight + extraLength))
         {
             myState = CharacterState.GROUNDED;
-            return;
+            wallGrabActivated = false;
         }
-
-        if (Physics.Raycast(bottomRight, right, rayLength) ||
-            (Physics.Raycast(transform.position, right, rayLength)) ||
-            (Physics.Raycast(topRight, right, rayLength)))
+        else if (myState != CharacterState.GROUNDED && inputArray[1] &&
+                 (Physics.Raycast(topLeftRay, out leftHit, characterWidth  + extraLength) ||
+                 Physics.Raycast(bottomLeftRay, out leftHit, characterWidth + extraLength)))
         {
-            if (Physics.Raycast(rightRay, out HitRight, rayLength))
-                if (HitRight.collider.tag == "Wall")
-                    return;
-
-             myState = CharacterState.WALLGRABRIGHT;
-        }
-        else
-        {
-            grabbingCheck = true;
-        }
-
-        if ((Physics.Raycast(bottomLeft, left, rayLength) ||
-            Physics.Raycast(topLeft, left, rayLength)) ||
-            Physics.Raycast(transform.position, left, rayLength))
-        {
-            if (Physics.Raycast(leftRay, out HitLeft, rayLength))
-                if (HitLeft.collider.tag == "Wall")
-                    return;
-
             myState = CharacterState.WALLGRABLEFT;
+            wallGrabActivated = true;
         }
-        else
+        else if (myState != CharacterState.GROUNDED && inputArray[2] &&
+                 (Physics.Raycast(topRightRay, out rightHit, characterWidth + extraLength) ||
+                 Physics.Raycast(bottomRightRay, out rightHit, characterWidth + extraLength)))
         {
-            if(grabbingCheck && myState != CharacterState.GROUNDED)
-            {
-                myState = CharacterState.JUMPING;
-            }
+            myState = CharacterState.WALLGRABRIGHT;
+            wallGrabActivated = true;
+        }
+        else if (myState != CharacterState.FALLING &&
+            (!Physics.Raycast(leftDownRay, out downHit, characterHeight + extraLength) &&
+             !Physics.Raycast(rightDownRay, out downHit, characterHeight + extraLength)))
+        {
+            myState = CharacterState.FALLING;
+            wallGrabActivated = false;
         }
     }
 
     private void TeleWallRaycast()
     {
+        float extraWidth = 0.01f;
         RaycastHit HitLeft;
         RaycastHit HitRight;
 
-        Vector3 left = transform.TransformDirection(new Vector3(-rayLength, 0f, 0f));
-        Vector3 right = transform.TransformDirection(new Vector3(rayLength, 0f, 0f));
-        Ray leftRay = new Ray(transform.position, left);
-        Ray rightRay = new Ray(transform.position, right);
+        Ray leftRay = new Ray(transform.position, Vector3.left);
+        Ray rightRay = new Ray(transform.position, Vector3.right);
 
 
-        if (Physics.Raycast(leftRay, out HitLeft, rayLength))
+        if (Physics.Raycast(leftRay, out HitLeft, characterWidth + extraWidth))
         {
             if (HitLeft.collider.tag == "Wall")
             {
-                if(!(body.position.x > 0f))
+                if(!(rb.position.x > 0f))
                 {
-                    body.position = new Vector3(-(HitLeft.transform.position.x) - .5f, body.position.y, body.velocity.z);
+                    rb.position = new Vector3(-(HitLeft.transform.position.x) - .5f, rb.position.y, rb.velocity.z);
                 }
             }
         }
-        else if (Physics.Raycast(rightRay, out HitRight, rayLength))
+        else if (Physics.Raycast(rightRay, out HitRight, characterWidth + extraWidth))
         {
             if (HitRight.collider.tag == "Wall" && timercheck != true)
             {
-                if (!(body.position.x < 0f))
+                if (!(rb.position.x < 0f))
                 {
-                    body.position = new Vector3(-(HitRight.transform.position.x) + .5f, body.position.y, body.velocity.z);
+                    rb.position = new Vector3(-(HitRight.transform.position.x) + .5f, rb.position.y, rb.velocity.z);
                 }
             }
         }
 
     }
 
-    //if players state is jumping then these are the movemnts that will run
-    public void JumpingMovement()
-    {
-
-        if (Input.GetKey("a") && timercheck != true)
-        {
-            var amount = -speed * Time.deltaTime * 100f;
-
-
-            if (!(body.velocity.x < -5f))
-            {
-                body.AddForce(amount * 7F, body.velocity.y, 0.0f, ForceMode.Force);
-            }
-        }
-
-        if (Input.GetKey("d") && timercheck != true)
-        {
-            var amount = speed * Time.deltaTime * 100f;
-            //var temp = body;
-            //temp.velocity = new Vector3(amount, body.velocity.y, 0f);
-
-            //body.velocity = new Vector3(amount, body.velocity.y, 0f);
-
-            if(!(body.velocity.x > 5f))
-            { 
-                body.AddForce(amount * 7F, body.velocity.y, 0.0f, ForceMode.Force);
-            }
-        }
-    }
-
-    //if the player is touch a wall then these are the movements that will happen, depending on the side touching the jump will change
-    public void WallGrabMovement(bool direction) //true = right, false = left
-    {
-        jump = 0;
-        if (direction)
-        {
-            //when the player is gripping using the right side
-            if (Input.GetKey("space") && jump < maxJumps)
-            {
-                var amount = jumpHeight * Time.deltaTime * 100.0f;
-
-                if (!(body.velocity.y > jumpHeight))
-                {
-                    body.AddForce(-6.0f, amount * 1.2f, 0.0f, ForceMode.Impulse);
-                }
-                myState = CharacterState.JUMPING;
-                jump++;
-                timercheck = true;
-                StartCoroutine(WallJumpTimer(.1f));
-            }
-            if (Input.GetKey("d"))
-            {
-                var amount = -1 * Time.deltaTime * 75f;
-                body.velocity = new Vector3(0f, amount, 0f);
-            }
-        }
-        else
-        {
-            if (Input.GetKey("space") && jump < maxJumps)
-            {
-                var amount = jumpHeight * Time.deltaTime * 100.0f;
-                if (!(body.velocity.y > jumpHeight))
-                {
-                    body.AddForce(6.0f, amount * 1.2f, 0.0f, ForceMode.Impulse);
-                }
-                myState = CharacterState.JUMPING;
-                jump++;
-                timercheck = true;
-                StartCoroutine(WallJumpTimer(.1f));
-            }
-            if (Input.GetKey("a"))
-            {
-                var amount = -1 * Time.deltaTime * 75f;
-                body.velocity = new Vector3(0f, amount, 0f);
-            }
-        }
-    }
-
-    //default movement that runs
-    public void GroundedMovement()
-    {
-        if (Input.GetKey("d"))
-        {
-            var amount = speed * Time.deltaTime * 100.0f;
-            body.velocity = new Vector3(amount, body.velocity.y, 0f);
-
-        }
-        if (Input.GetKey("a"))
-        {
-            var amount = -speed * Time.deltaTime * 100.0f;
-            body.velocity = new Vector3(amount, body.velocity.y, 0f);
-
-        }
-        if (Input.GetKey("space") && jump < maxJumps)
-        {
-            var amount = jumpHeight * Time.deltaTime * 100.0f;
-            body.AddForce(0.0f, amount, 0.0f, ForceMode.Impulse);
-            myState = CharacterState.JUMPING;
-            jump++;
-
-        }
-    }
-
-    //resets the jump count to 0 aslong as the player is colliding with something
-    public void OnCollisionStay(Collision collision)
-    {
-        jump = 0;
-    }
+    
 }
 

@@ -1,4 +1,7 @@
 
-Avalanche/\.vs/
-
-Avalanche/Library/
+Avalanche/\.vs/*
+Avalanche/Library/*
+Avalanche/obj/*
+Avalanche/Temp/*
+Avalanche/*.sln
+Avalanche/*.csproj
